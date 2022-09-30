@@ -1,0 +1,27 @@
+clear;
+
+tipwidth = 180;
+outwidth = 500;
+cellnumber = 30; # total number of cells
+runsimulation = true; # whether you want to run the simulation. Make this false if you already ran the simulation once and the result is saved
+
+# Select mode(s) to optimize
+pol = 1; # 1 for TE mode, 2 for TM mode, 3 for both TE and TM mode
+
+# suggested number of modes to use for each optimization
+if (pol==1) {maxmodes = 30;}
+if (pol==2) {maxmodes = 30;}
+if (pol==3) {maxmodes = 80;}
+
+if (runsimulation) {
+    buildGeometry; # Build the geometry
+    run;
+}
+
+# The lengths we want the profile optimization to run
+optimizedlength_mat = [15e-6; 20e-6; 25e-6; 30e-6];
+
+# Run the particle swarm optimization algorithm
+particleswarmrun;
+
+# the output will be a text file with the taper efficiency and 

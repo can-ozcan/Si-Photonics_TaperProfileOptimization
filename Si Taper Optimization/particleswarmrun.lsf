@@ -1,0 +1,193 @@
+polypar = 9;
+inputwidth = tipwidth;
+outputwidth = outwidth;
+
+# The polynomial powers (See documentation for details)
+polynomial_powers =[0; 0.3; 0.5; 0.7; 1; 2; 5; 10; 20];
+
+S=60; # number of particles in the swarm
+gen=10; # Maximum generations to run the optimization for
+
+for (optimizedlength = optimizedlength_mat) {
+    kk = 1;
+    samecntr=0;
+    stopoptimization=0;
+    samecntr=0;
+    fgprev=0;
+    ?fname = "Polarization_" + num2str(pol) + "_length_" + num2str(optimizedlength*1e6) + ".txt";
+    
+    w=1; lr=0.9;
+    phip=0.3; phig=0.2;
+    x=matrix(S,polypar);
+    p=matrix(S,polypar);
+    v=matrix(S,polypar);
+    g=matrix(polypar,1);
+    xw=matrix(cellnumber+1,1);
+    xspans=matrix(cellnumber,1);
+    q=0:0.00001:1;
+    y=matrix(length(q),1);
+    wid=matrix(cellnumber+1,1);
+    wid(1)=inputwidth; wid(cellnumber+1)=outputwidth;
+    for (ww=2:cellnumber) {
+        wid(ww)=inputwidth + (ww-1)*(outputwidth-inputwidth)/cellnumber;
+    }
+    wid=wid/outputwidth;
+    
+    fg=0; fgm=0;
+    for (i=1:S) {
+        x(i,2:polypar)=randmatrix(1,polypar-1);
+        #x(i,2:polypar) = [0;0;0;1;0;0;0;0];
+        x(i,1)=(inputwidth)/outputwidth;
+        #x(i,:)=x(i,:)/sum(x(i,:))*optimizedlength;
+        R = (1-x(i,1))/(sum(x(i,2:polypar)));
+        x(i,2:polypar) = R*x(i,2:polypar);
+        p(i,:)=x(i,:);
+        y=matrix(length(q),1);
+        cntr=0;
+        for (aa=polynomial_powers) {
+            cntr=cntr+1;
+            y=y+p(i,cntr)*q^(aa);
+        }
+        
+        xw(1)=0; xw(cellnumber+1)=1;
+        for (aa=2:cellnumber) {
+            ary = abs(y - wid(aa));
+            out = find(ary==min(ary));
+            mind = min(out);
+            xw(aa) = q(mind);
+        }
+        
+        xspans=xw(2:cellnumber+1)-xw(1:cellnumber);
+        xspans=xspans*optimizedlength;
+        setemeanalysis("group spans", [1e-6; (xspans(:)); 1e-6]);
+        setemeanalysis("include fast diagnostics", false);
+        setemeanalysis("include slow diagnostics", false);
+        setemeanalysis("update monitors", false);
+        #setemeanalysis("calculate group delays", false);
+        emepropagate;
+        SS = getresult("EME", "user s matrix");
+        
+        if (pol==3) {
+            trte = abs(SS(3,1))^2;
+            trtm = abs(SS(4,2))^2;
+        }
+        else {
+            trte = abs(SS(2,1))^2;
+            trtm = abs(SS(2,1))^2;
+        }
+        
+        trp = min([trte,trtm]);
+        trmp = max([trte,trtm]);
+        
+        if (trmp==trte) {
+            maxte=1;
+        }
+        else {
+            maxte=0;
+        }
+        if (trp>fg) {
+            g(1:polypar)=p(i,1:polypar);
+            fg = trp;
+            fgm = trmp;
+        }
+        v(i,1)=0;
+        for (plypr = 2:polypar) {
+            v(i,plypr)=0.05*(rand-0.5); }
+            ?info = "Gen = " + num2str(0) + ", Particle = " + num2str(i) + ", Best = " + num2str(fg);
+        }
+        
+        write(fname, num2str(0) + "    " + num2str(fg) + "    " + num2str(fgm) + "    " + num2str(maxte) + "    " + num2str(transpose(g)));
+        
+        for (aaa=1:gen) {
+            fgpprev=fgprev;
+            fgprev=fg;
+            if (fgpprev==fgprev) {samecntr=samecntr+1; } else {samecntr=0;}
+            if (samecntr>3) {stopoptimization=1;}
+            
+            if (~stopoptimization) {
+                for (i=1:S) {
+                    ?info = "Gen = " + num2str(aaa) + ", Particle = " + num2str(i);
+                    
+                    for (d=2:polypar) {
+                        rp=rand; rg=rand;
+                        v(i,d)=w*v(i,d) + phip*rp*(p(i,d)-x(i,d)) + phig*rg*(g(d)-x(i,d));
+                    }
+                    vcorrection = sum(v(i,2:polypar))/(polypar-1);
+                    v(i,2:polypar)=v(i,2:polypar)-vcorrection;
+                    x(i,2:polypar) = x(i,2:polypar) + lr*v(i,2:polypar);
+                    R = (1-x(i,1))/(sum(x(i,2:polypar)));
+                    x(i,2:polypar) = R*x(i,2:polypar);
+                    for (cor=1:100) {
+                        prob=0;
+                        for (dd=2:polypar) {
+                            if (x(i,dd)<0) {x(i,dd) = 0.0001; v(i,dd) = 0; ?prob = 1;}
+                            if (x(i,dd)>(1-x(i,1))) {x(i,dd) = 0.9999-x(i,1); v(i,dd) = 0; ?prob = 2;}
+                        }
+                        R=(1-x(i,1))/(sum(x(i,2:polypar)));
+                        x(i,2:polypar) = R*x(i,2:polypar);
+                    }
+                    warning=0;
+                    for(tr=1:polypar) {
+                        if (x(i,tr)<0) {
+                            ?warning=1;
+                        }
+                    }
+                    y=matrix(length(q),1);
+                    cntr=0;
+                    for (aa=polynomial_powers) {
+                        cntr=cntr+1;
+                        y=y+x(i,cntr)*q^(aa);
+                    }
+                    xw(1)=0; xw(cellnumber+1)=1;
+                    
+                    for (aa=2:cellnumber) {
+                        ary = abs(y - wid(aa));
+                        out = find(ary==min(ary));
+                        mind = min(out);
+                        xw(aa) = q(mind);
+                    }
+                    
+                    xspans=xw(2:cellnumber+1)-xw(1:cellnumber);
+                    xspans=xspans*optimizedlength;
+                    
+                    if (~warning) {
+                        setemeanalysis("group spans", [1e-6; (xspans(:)); 1e-6]);
+                        setemeanalysis("include fast diagnostics", false);
+                        setemeanalysis("include slow diagnostics", false);
+                        setemeanalysis("update monitors", false);
+                        #setemeanalysis("calculate group delays", false);
+                        pause(0.5);
+                        emepropagate;
+                        SS = getresult("EME", "user s matrix");
+                        if (pol==1) {
+                            ?trte = abs(SS(2,1))^2;
+                            trtm = abs(SS(2,1))^2;
+                        }
+                        if (pol==2) {
+                            ?trte = abs(SS(2,1))^2;
+                            trtm = abs(SS(2,1))^2;
+                        }
+                        if (pol==3) {
+                            ?trte = abs(SS(3,1))^2;
+                            ?trtm = abs(SS(4,2))^2;
+                        }
+                        trx = min([trte,trtm]);
+                        trmx = max([trte,trtm]);
+                        if (trmx==trte) {maxte=1;} else {maxte=0;}
+                        if (trx>=trp-0.00001) {
+                            p(i,:)=x(i,:);
+                            trp=trx;
+                            trmp=trmx;
+                            if (trp>fg) {
+                                g(1:polypar)=p(i,1:polypar);
+                                fg = trp;
+                                fgm = trmp;
+                            }
+                        }
+                    }
+                }
+                write(fname, num2str(aaa) + "    " + num2str(fg) + "    " + num2str(fgm) + "    " + num2str(maxte) + "    " + num2str(transpose(g)));
+            }
+        }
+    }
+    

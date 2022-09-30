@@ -1,0 +1,169 @@
+switchtolayout;
+selectall;
+delete;
+
+dy = 20e-9;
+dz = 20e-9;
+
+
+in_width = tipwidth*1e-9; # from the overlap optimization
+out_width = outwidth*1e-9; # the output width of the taper
+
+z0 = 0;
+z1 = 10e-6; # keep at 10 microns default, scalable later
+lpiece = 10e-6; # total length of the taper pieces
+npiece = 11; # number of taper pieces
+
+each = lpiece/(npiece-1);
+## linear taper
+z = linspace(0, z1-z0, npiece);
+wlin = (out_width-in_width)*(z-z0)/(z1-z0)+in_width;
+
+si_thk = 220e-9;
+
+addeme;
+grpspns = matrix(cellnumber+2,1);
+grpspns(1) = 1e-6;
+grpspns(cellnumber+2) = 1e-6;
+grpspns(2:cellnumber+1) = z1/cellnumber;
+
+cell_mat = matrix(cellnumber+2,1);
+cell_mat=cell_mat+1;
+subcell_mat = matrix(cellnumber+2,1);
+subcell_mat=subcell_mat+1;
+subcell_mat(1)=0; subcell_mat(cellnumber+2)=0;
+
+select("EME");
+if (pol == 1) {
+    set("y min bc", "anti-symmetric");
+    set("z min bc", "symmetric");
+}
+if (pol == 2) {
+    set("y min bc", "symmetric");
+    set("z min bc", "anti-symmetric");
+}
+if (pol == 3) {
+    set("y min bc", "metal");
+    set("z min bc", "metal");
+}
+set("y max bc", "metal");
+set("z max bc", "metal");
+set("define y mesh by", 1);
+set("define z mesh by", 1);
+set("dy", dy);
+set("dz", dz);
+set("grading factor", 1.1); # default is 1.41 which is too high for this str.
+set("number of cell groups", cellnumber+2);
+set("number of modes for all cell groups", maxmodes);
+set("display cells", true);
+set("group spans", grpspns);
+set("cells", cell_mat);
+set("subcell method", subcell_mat);
+set("x min", -1e-6);
+set("y", 0);
+set("z", si_thk/2);
+set("y span", 5e-6);
+set("z span", 5e-6);
+if (pol==1) {
+    select("EME::Ports::port_1");
+    set("use full simulation span", true);
+    set("mode selection", "fundamental TE mode");
+    select("EME::Ports::port_2");
+    set("use full simulation span", true);
+    set("mode selection", "fundamental TE mode");
+}
+if (pol==2) {
+    select("EME::Ports::port_1");
+    set("use full simulation span", true);
+    set("mode selection", "fundamental TM mode");
+    select("EME::Ports::port_2");
+    set("use full simulation span", true);
+    set("mode selection", "fundamental TM mode");
+}
+if (pol==3) {
+    select("EME::Ports::port_1");
+    set("use full simulation span", true);
+    set("mode selection", "fundamental TE and TM mode");
+    select("EME::Ports::port_2");
+    set("use full simulation span", true);
+    set("mode selection", "fundamental TE and TM mode");
+}
+
+
+addmesh;
+set("x min", -2e-6);
+set("x max", 12e-6);
+set("y", 0);
+set("y span", 0.7e-6);
+set("z min", -0.1e-6);
+set("z max", 0.32e-6);
+set("set maximum mesh step", true);
+set("dy", 8e-9);
+set("dz", 8e-9);
+
+addmesh;
+set("x min", -2e-6);
+set("x max", 12e-6);
+set("y", 0);
+set("y span", 1.4e-6);
+set("z min", -0.1e-6);
+set("z max", 0.32e-6);
+set("set maximum mesh step", true);
+set("dy", 10e-9);
+set("dz", 10e-9);
+
+# generate the taper profile with polygons
+# the taper profile is linear for now, later we will change it
+for (i=1:(npiece-1)) {
+    vtx = [each*(i-1), wlin(i)/2; each*(i-1), -wlin(i)/2; each*(i), -wlin(i+1)/2; each*(i), wlin(i+1)/2];
+    addpoly;
+    set("name","TaperPiece");
+    set("vertices",vtx);
+    set("z",si_thk/2);
+    set("x",0);
+    set("y",0);
+    set("z span", si_thk);
+    set("material", "Si (Silicon) - Palik");
+    set("override mesh order from material database", true);
+    set("mesh order", 2);
+}
+
+
+addrect;
+set("name", "SiWG");
+set("y", 0);
+set("y span", in_width);
+set("x min", -2e-6);
+set("x max", 0e-6);
+set("z min", 0);
+set("z max", si_thk);
+set("material", "Si (Silicon) - Palik");
+set("override mesh order from material database", true);
+set("mesh order", 2);
+
+
+addrect;
+set("name", "SiWG");
+set("y", 0);
+set("y span", out_width);
+set("x min", 10e-6);
+set("x max", 15e-6);
+set("z min", 0);
+set("z max", si_thk);
+set("material", "Si (Silicon) - Palik");
+set("override mesh order from material database", true);
+set("mesh order", 2);
+
+
+addrect;
+set("name", "Oxide");
+set("y max", 40e-6);
+set("y min", -40e-6);
+set("x min", -40e-6);
+set("x max", 40e-6);
+set("z min", -40e-6);
+set("z max", 40e-6);
+set("material", "SiO2 (Glass) - Palik");
+set("override mesh order from material database", true);
+set("mesh order", 3);
+set("alpha", 0.1);
